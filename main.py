@@ -16,6 +16,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import gc  # Garbage collection
 
 from tensorflow.python.keras.backend import clear_session
+from sklearn.metrics.pairwise import euclidean_distances
 
 # Adjust the images folder
 IMAGES_FOLDER = Path(__file__).parent / "images"
@@ -30,6 +31,32 @@ rect_strings = [
     "top right:   ",
     "bottom left: "
 ]
+
+
+def hybrid_similarity(feature1, feature2, top_k=5, weight_cosine=0.7, weight_euclidean=0.3):
+    """
+    Calculate a hybrid similarity score using cosine similarity and Euclidean distance.
+
+    :param feature1: Array of features (1xN).
+    :param feature2: Array of features (MxN) (templates).
+    :param top_k: Number of top matches to average.
+    :param weight_cosine: Weight for cosine similarity (0-1).
+    :param weight_euclidean: Weight for Euclidean distance (0-1).
+    :return: Weighted similarity score.
+    """
+    # Calculate cosine similarity
+    cosine_sim = cosine_similarity(feature1, feature2)[0]
+
+    # Calculate Euclidean distance (convert to similarity by inverting and normalizing)
+    euclidean_dist = euclidean_distances(feature1, feature2)[0]
+    euclidean_sim = 1 / (1 + euclidean_dist)  # Normalize to [0, 1]
+
+    # Combine both similarities with weights
+    combined_sim = weight_cosine * cosine_sim + weight_euclidean * euclidean_sim
+
+    # Average the top-k scores
+    top_k_scores = sorted(combined_sim, reverse=True)[:top_k]
+    return sum(top_k_scores) / len(top_k_scores)
 
 
 class WindowFinderApp:
@@ -129,7 +156,7 @@ class WindowFinderApp:
 
     def extract_features(self, image):
         """Extract features using MobileNetV2."""
-        img_resized = cv2.resize(image, (224, 224))
+        img_resized = cv2.resize(image, (112, 112))
         img_array = np.expand_dims(img_resized, axis=0)
         img_preprocessed = preprocess_input(img_array)
         features = self.model.predict(img_preprocessed)
@@ -152,6 +179,8 @@ class WindowFinderApp:
             print(f"No images found in {IMAGES_FOLDER}.")
             sys.exit(1)
         self.root.mainloop()
+
+
 
     def capture_screen_in_region(self, rect, windowTitle):
         """Capture and preprocess a screen region."""
@@ -208,40 +237,68 @@ class WindowFinderApp:
         """Find match using cosine similarity."""
 
         for name, template_features in self.templates:
-            similarity = cosine_similarity(screen_features, template_features)
-            max_similarity = similarity[0][0]
-            if max_similarity >= self.match_threshold:
-                print(f"Match found: {name} similarity: {max_similarity:.3f}")
+            sim = cosine_similarity(screen_features, template_features)
+            similarity = sim[0][0]
+            if name == "Wigglytuff2.png": similarity -= 0.03
+            elif name == "Charmander.png": similarity -= 0.02
+            elif name == "Cubone.png": similarity -= 0.03
+            elif name == "Slowpoke.png": similarity += 0.05
+            elif name == "Nidoqueen.png": similarity += 0.04
+            elif name == "Nidoking.png": similarity += 0.04
+            elif name == "Pidgeot.png": similarity += 0.04
+            elif name == "Zapdos2.png": similarity += 0.03
+            elif name == "Porygon.png": similarity += 0.04
+            elif name == "Snorlax.png": similarity += 0.04
+            elif name == "Meowth.png": similarity += 0.04
+            elif name == "Pinsir.png": similarity += 0.04
+            elif name == "Golbat.png": similarity += 0.05
+            elif name == "Marowak.png": similarity += 0.06
+            elif name == "Mewtwo.png": similarity += 0.06
+            elif name == "Eevee.png": similarity += 0.06
+            if similarity >= self.match_threshold:
+                print(f"Match found: {name} similarity: {similarity:.3f}")
                 return True
         return False
 
-    def find_match_printed(self, screen_features, rectangle_num):
+
+    def find_match_printed(self, screen_features, rectangle_num, window_name):
         """Find match using cosine similarity."""
         highest_similarity = 0
         highest_sim_name = ""
         rect_pos = rect_strings[rectangle_num]
 
         for name, template_features in self.templates:
-            similarity = cosine_similarity(screen_features, template_features)
-            current_similarity = similarity[0][0]
-            if name == "Wigglytuff2.png": current_similarity -= 0.03
-            elif name == "Charmander.png": current_similarity -= 0.02
-            elif name == "Cubone.png": current_similarity -= 0.03
-            elif name == "Slowpoke.png": current_similarity += 0.05
-            elif name == "Nidoqueen.png": current_similarity += 0.04
-            elif name == "Pidgeot.png": current_similarity += 0.04
-            if current_similarity > highest_similarity:
+            sim = cosine_similarity(screen_features, template_features)
+            similarity = sim[0][0]
+            if name == "Wigglytuff2.png": similarity -= 0.03
+            elif name == "Charmander.png": similarity -= 0.02
+            elif name == "Cubone.png": similarity -= 0.03
+            elif name == "Slowpoke.png": similarity += 0.05
+            elif name == "Nidoqueen.png": similarity += 0.04
+            elif name == "Nidoking.png": similarity += 0.04
+            elif name == "Pidgeot.png": similarity += 0.04
+            elif name == "Zapdos2.png": similarity += 0.03
+            elif name == "Porygon.png": similarity += 0.04
+            elif name == "Snorlax.png": similarity += 0.04
+            elif name == "Meowth.png": similarity += 0.04
+            elif name == "Pinsir.png": similarity += 0.04
+            elif name == "Golbat.png": similarity += 0.05
+            elif name == "Marowak.png": similarity += 0.06
+            elif name == "Mewtwo.png": similarity += 0.06
+            elif name == "Eevee.png": similarity += 0.06
+            if similarity > highest_similarity:
                 #highest_similarity2 = highest_similarity
                 #highest_sim_name2 = highest_sim_name
-                highest_similarity = current_similarity
+                highest_similarity = similarity
                 highest_sim_name = name
             #print(f"Checking template: {name}, Similarity: {max_similarity}")
-            if current_similarity >= self.match_threshold:
-                print(f"{rect_pos} {name} with {current_similarity:.3f}")
+            if similarity >= self.match_threshold:
+                print("/////////////////////////////////////////")
+                print(f"{rect_pos} {name} with {similarity:.3f} in {window_name}")
                 print(f"/////////// MATCH FOUND!!! /////////////")
-                print(f"{name}'S VALUE {current_similarity:.3f} IS HIGHER THAN THE THRESHOLD")
+               ## print(f"{name}'S VALUE {similarity:.3f} IS HIGHER THAN THE THRESHOLD")
                 return True
-        print(f"{rect_pos} {highest_sim_name} with {highest_similarity:.3f}")
+        print(f"{rect_pos} {highest_sim_name} with {highest_similarity:.3f} in {window_name}")
         return False
 
     def find_closest_match(self, screen_features):
@@ -249,10 +306,10 @@ class WindowFinderApp:
         highest_similarity = 0
         highest_sim_name = ""
         for name, template_features in self.templates:
-            similarity = cosine_similarity(screen_features, template_features)
-            max_similarity = similarity[0][0]
-            if max_similarity > highest_similarity:
-                highest_similarity = max_similarity
+            sim = cosine_similarity(screen_features, template_features)
+            similarity = sim[0][0]
+            if similarity > highest_similarity:
+                highest_similarity = similarity
                 highest_sim_name = name
         print(f"highest similarity:{highest_sim_name} - {highest_similarity})")
         return highest_similarity
@@ -339,7 +396,7 @@ class WindowFinderApp:
                         if screen_features is not None:
                             screen_features = self.extract_features(screen_features)
                             if self.print_details.get():
-                                if self.find_match_printed(screen_features, rect_id):
+                                if self.find_match_printed(screen_features, rect_id, windowTitle):
                                     match_count += 1
                                 else:
                                     miss_count += 1
